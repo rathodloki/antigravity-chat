@@ -10,7 +10,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     return (
-        <div className="flex h-screen w-screen overflow-hidden text-[var(--text-main)] selection:bg-[var(--accent-primary)] selection:text-black">
+        <div className="flex flex-col md:flex-row h-screen w-screen overflow-hidden text-[var(--text-main)] selection:bg-[var(--accent-primary)] selection:text-black">
             {/* Mobile Menu Overlay */}
             {isMobileMenuOpen && (
                 <div
@@ -19,24 +19,33 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 />
             )}
 
-            {/* Mobile Hamburger Button */}
-            <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className="fixed top-4 left-4 z-50 p-2 bg-[#050505] border border-white/10 rounded-md md:hidden"
-            >
-                {isMobileMenuOpen ? <X size={20} className="text-white" /> : <Menu size={20} className="text-white" />}
-            </button>
+            {/* Mobile Header Bar - Fixes overlap issue */}
+            <div className="flex md:hidden items-center justify-between px-4 py-3 bg-[#050505] border-b border-white/10 relative z-30 flex-shrink-0">
+                <button
+                    onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                    className="p-1 text-white hover:bg-white/10 rounded-md"
+                >
+                    {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+                </button>
 
-            <div className="relative z-10 flex w-full h-full backdrop-blur-sm">
+                <span className="font-mono font-bold text-sm tracking-widest text-white uppercase select-none">
+                    ANTIGRAVITY
+                </span>
+
+                {/* Spacer for balance */}
+                <div className="w-8" />
+            </div>
+
+            <div className="relative z-10 flex w-full flex-1 overflow-hidden backdrop-blur-sm">
                 {/* Desktop Sidebar (hidden on mobile) */}
                 <Sidebar className="hidden md:flex flex-shrink-0" />
 
                 {/* Mobile Sidebar (slides in) */}
                 <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <Sidebar className="flex h-full" onNavigate={() => setIsMobileMenuOpen(false)} />
+                    <Sidebar className="flex h-full shadow-2xl" onNavigate={() => setIsMobileMenuOpen(false)} />
                 </div>
 
-                <main className="flex-1 min-w-0 relative flex flex-col bg-black/20">
+                <main className="flex-1 min-w-0 relative flex flex-col bg-black/20 h-full">
                     {children}
                 </main>
             </div>
