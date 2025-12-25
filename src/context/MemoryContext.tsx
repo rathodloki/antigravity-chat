@@ -502,6 +502,17 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         localStorage.removeItem('antigravity_firebase_config');
     };
 
+    // Auto-Sync on Local Changes
+    useEffect(() => {
+        if (isLocalDataLoaded && cloudConfig.syncCode && firebaseServiceRef.current && !isReceivingUpdate.current) {
+            const timeoutId = setTimeout(() => {
+                console.log('[FIREBASE] Auto-syncing local changes...');
+                syncMemory();
+            }, 2000); // 2s debounce to capture burst edits
+            return () => clearTimeout(timeoutId);
+        }
+    }, [sessions, profile, isLocalDataLoaded, cloudConfig.syncCode]);
+
 
     return (
         <MemoryContext.Provider value={{
