@@ -40,12 +40,15 @@ export class GeminiService {
 
         try {
             // 1. Construct MEMORY-AWARE system prompt
-            const factsSection = userProfile.facts.length > 0
-                ? `\n## IMPORTANT - THINGS I KNOW ABOUT ${userProfile.name.toUpperCase()}:\n${userProfile.facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n`
+            const facts = userProfile?.facts || [];
+            const preferences = userProfile?.preferences || [];
+
+            const factsSection = facts.length > 0
+                ? `\n## IMPORTANT - THINGS I KNOW ABOUT ${(userProfile?.name || 'USER').toUpperCase()}:\n${facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n`
                 : '\n(No facts stored yet about this user)\n';
 
-            const preferencesSection = userProfile.preferences.length > 0
-                ? `\n## USER PREFERENCES:\n${userProfile.preferences.map(p => `- ${p}`).join('\n')}\n`
+            const preferencesSection = preferences.length > 0
+                ? `\n## USER PREFERENCES:\n${preferences.map(p => `- ${p}`).join('\n')}\n`
                 : '';
 
             const memoryContext = `You are Antigravity, a personal AI assistant with PERSISTENT MEMORY.
@@ -164,12 +167,15 @@ ${systemInstruction || ''}`;
 
         try {
             // 1. Construct MEMORY-AWARE system prompt (Same as before)
-            const factsSection = userProfile.facts.length > 0
-                ? `\n## IMPORTANT - THINGS I KNOW ABOUT ${userProfile.name.toUpperCase()}:\n${userProfile.facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n`
+            const facts = userProfile?.facts || [];
+            const preferences = userProfile?.preferences || [];
+
+            const factsSection = facts.length > 0
+                ? `\n## IMPORTANT - THINGS I KNOW ABOUT ${(userProfile?.name || 'USER').toUpperCase()}:\n${facts.map((f, i) => `${i + 1}. ${f}`).join('\n')}\n`
                 : '\n(No facts stored yet about this user)\n';
 
-            const preferencesSection = userProfile.preferences.length > 0
-                ? `\n## USER PREFERENCES:\n${userProfile.preferences.map(p => `- ${p}`).join('\n')}\n`
+            const preferencesSection = preferences.length > 0
+                ? `\n## USER PREFERENCES:\n${preferences.map(p => `- ${p}`).join('\n')}\n`
                 : '';
 
             const memoryContext = `You are Antigravity, a personal AI assistant with PERSISTENT MEMORY.
