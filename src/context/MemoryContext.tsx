@@ -139,12 +139,29 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsLocalDataLoaded(true);
     }, []);
 
-    // Save History Persistence
+    // Save History Persistence + Auto-Upload to Cloud
     useEffect(() => {
         if (sessions.length > 0) {
             localStorage.setItem('antigravity_history_v1', JSON.stringify(sessions));
+
+            // Auto-upload to cloud if connected (debounced by 2 seconds)
+            if (isLocalDataLoaded && cloudConfig.pat && cloudConfig.gistId && syncStatus === 'connected') {
+                const timeoutId = setTimeout(() => {
+                    console.log('[CLOUD] Auto-uploading sessions change...');
+                    const service = new GistService(cloudConfig.pat);
+                    const payload = {
+                        profile,
+                        sessions,
+                        lastUpdated: Date.now()
+                    };
+                    service.updateMemory(cloudConfig.gistId!, payload).catch(e => {
+                        console.error('[CLOUD] Auto-upload failed:', e);
+                    });
+                }, 2000);
+                return () => clearTimeout(timeoutId);
+            }
         }
-    }, [sessions]);
+    }, [sessions, cloudConfig.pat, cloudConfig.gistId, syncStatus, isLocalDataLoaded]);
 
     const startNewChat = () => {
         // 1. Prevent duplicate empty sessions
