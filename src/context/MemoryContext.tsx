@@ -1,11 +1,10 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import type { UserProfile, Message, ChatSession } from '../types';
 import { GeminiService } from '../services/GeminiService';
-import { GistService } from '../services/GistService';
+import { FirebaseService } from '../services/FirebaseService';
 
 interface CloudConfig {
-    pat: string;
-    gistId: string | null;
+    syncCode: string;
     lastSync: number;
 }
 
@@ -36,11 +35,12 @@ interface MemoryContextType {
     updateManualProfile: (profile: UserProfile) => void;
     deleteFact: (index: number) => void;
 
-    // Neural Cloud (Sync)
+    // Neural Cloud (Firebase Sync)
     cloudConfig: CloudConfig;
-    setGithubPat: (token: string) => Promise<void>;
+    setSyncCode: (code: string) => Promise<void>;
     syncStatus: 'idle' | 'syncing' | 'error' | 'connected';
     syncMemory: () => Promise<void>;
+    disconnectCloud: () => void;
 }
 
 const MemoryContext = createContext<MemoryContextType | null>(null);
@@ -69,31 +69,35 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
     const [currentMessages, setCurrentMessages] = useState<Message[]>([]);
 
-    // Cloud Sync State
+    // Cloud Sync State (Firebase)
     const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => {
-        const saved = localStorage.getItem('antigravity_cloud_config');
-        return saved ? JSON.parse(saved) : { pat: '', gistId: null, lastSync: 0 };
+        const saved = localStorage.getItem('antigravity_firebase_config');
+        return saved ? JSON.parse(saved) : { syncCode: '', lastSync: 0 };
     });
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'connected'>('idle');
     const [isLocalDataLoaded, setIsLocalDataLoaded] = useState(false);
+    const firebaseServiceRef = useRef<FirebaseService | null>(null);
+    const isReceivingUpdate = useRef(false); // Prevent feedback loops
 
     // Persist Cloud Config
     useEffect(() => {
-        localStorage.setItem('antigravity_cloud_config', JSON.stringify(cloudConfig));
+        localStorage.setItem('antigravity_firebase_config', JSON.stringify(cloudConfig));
     }, [cloudConfig]);
 
     // Auto-Connect on Load (only after local data is loaded)
     useEffect(() => {
-        if (isLocalDataLoaded && cloudConfig.pat && cloudConfig.gistId) {
-            console.log('[CLOUD] Auto-connecting after local data load...');
-            setSyncStatus('syncing');
-            // Pass current sessions explicitly
-            syncMemoryInternal(cloudConfig, profile, sessions).catch(e => {
-                console.error('[CLOUD] Auto-sync failed', e);
-                setSyncStatus('error');
-            });
+        if (isLocalDataLoaded && cloudConfig.syncCode) {
+            console.log('[FIREBASE] Auto-connecting after local data load...');
+            connectToFirebase(cloudConfig.syncCode);
         }
-    }, [isLocalDataLoaded, cloudConfig.pat, cloudConfig.gistId]); // Depends on local load completion
+
+        return () => {
+            // Cleanup on unmount
+            if (firebaseServiceRef.current) {
+                firebaseServiceRef.current.unsubscribeFromUpdates();
+            }
+        };
+    }, [isLocalDataLoaded]); // Only run once after local data loads
 
     const setApiKey = (key: string) => {
         setApiKeyState(key);
@@ -139,29 +143,28 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setIsLocalDataLoaded(true);
     }, []);
 
-    // Save History Persistence + Auto-Upload to Cloud
+    // Save History Persistence + Auto-Upload to Firebase
     useEffect(() => {
         if (sessions.length > 0) {
             localStorage.setItem('antigravity_history_v1', JSON.stringify(sessions));
 
-            // Auto-upload to cloud if connected (debounced by 2 seconds)
-            if (isLocalDataLoaded && cloudConfig.pat && cloudConfig.gistId && syncStatus === 'connected') {
+            // Auto-upload to Firebase if connected (debounced by 2 seconds)
+            if (isLocalDataLoaded && cloudConfig.syncCode && syncStatus === 'connected' && firebaseServiceRef.current && !isReceivingUpdate.current) {
                 const timeoutId = setTimeout(() => {
-                    console.log('[CLOUD] Auto-uploading sessions change...');
-                    const service = new GistService(cloudConfig.pat);
+                    console.log('[FIREBASE] Auto-uploading sessions change...');
                     const payload = {
                         profile,
                         sessions,
                         lastUpdated: Date.now()
                     };
-                    service.updateMemory(cloudConfig.gistId!, payload).catch(e => {
-                        console.error('[CLOUD] Auto-upload failed:', e);
+                    firebaseServiceRef.current?.uploadData(payload).catch((e: Error) => {
+                        console.error('[FIREBASE] Auto-upload failed:', e);
                     });
                 }, 2000);
                 return () => clearTimeout(timeoutId);
             }
         }
-    }, [sessions, cloudConfig.pat, cloudConfig.gistId, syncStatus, isLocalDataLoaded]);
+    }, [sessions, cloudConfig.syncCode, syncStatus, isLocalDataLoaded]);
 
     const startNewChat = () => {
         // 1. Prevent duplicate empty sessions
@@ -342,122 +345,126 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         }
     };
 
-    // --- Neural Cloud Sync Logic ---
-    // --- Neural Cloud Sync Logic ---
-    const syncMemoryInternal = async (config: CloudConfig, currentProfile: UserProfile, currentSessions: ChatSession[]) => {
-        try {
-            const service = new GistService(config.pat);
-            // 1. Download Cloud Data
-            if (!config.gistId) return;
-
-            const cloudResult = await service.downloadMemory(config.gistId);
-
-            if (!cloudResult) {
-                // Cloud Empty? Upload Local.
-                const payload = {
-                    profile: currentProfile,
-                    sessions: currentSessions,
-                    lastUpdated: Date.now()
-                };
-                await service.updateMemory(config.gistId, payload);
-                setSyncStatus('connected');
-                return;
-            }
-
-            // Handle legacy format (where root was UserProfile) vs new format
-            const cloudData = cloudResult.data as any; // Force any to inspect structure
-
-            let cloudProfile: UserProfile;
-            let cloudSessions: ChatSession[] = [];
-
-            if (cloudData.profile) {
-                // New NeuralPayload format
-                cloudProfile = cloudData.profile;
-                cloudSessions = cloudData.sessions || [];
-            } else {
-                // Legacy UserProfile format
-                cloudProfile = cloudData as UserProfile;
-            }
-            const cloudTime = new Date(cloudProfile.lastUpdated || 0).getTime();
-            const localTime = new Date(currentProfile.lastUpdated || 0).getTime();
-
-            console.log(`[SYNC] Cloud: ${cloudTime}, Local: ${localTime}`);
-
-            // Simple "Last Write Wins" based on Gist Update Time
-            if (cloudTime > localTime + 2000) { // 2s buffer
-                console.log('[SYNC] Cloud is newer. Overwriting local.');
-
-                if (cloudProfile && cloudProfile.name) {
-                    setProfile(cloudProfile);
-                    localStorage.setItem('antigravity_memory_v1', JSON.stringify(cloudProfile));
-                }
-
-                // Merge Sessions: smart merge? For now, Cloud Overwrite to ensure consistency across devices
-                if (cloudSessions.length > 0) {
-                    setSessions(cloudSessions);
-                    localStorage.setItem('antigravity_history_v1', JSON.stringify(cloudSessions));
-
-                    // Reload current view if empty
-                    if (currentMessages.length === 0 && cloudSessions.length > 0) {
-                        const latest = cloudSessions.sort((a: any, b: any) => b.timestamp - a.timestamp)[0];
-                        setCurrentSessionId(latest.id);
-                        setCurrentMessages(latest.messages);
-                    }
-                }
-            } else if (localTime > cloudTime + 2000) {
-                console.log('[SYNC] Local is newer. Uploading to cloud.');
-                const payload = {
-                    profile: currentProfile,
-                    sessions: currentSessions,
-                    lastUpdated: Date.now()
-                };
-                await service.updateMemory(config.gistId, payload);
-            } else {
-                console.log('[SYNC] Fully synced.');
-            }
-
-            setCloudConfig(prev => ({ ...prev, lastSync: Date.now() }));
-            setSyncStatus('connected');
-
-        } catch (error) {
-            console.error('[SYNC] Failed:', error);
-            setSyncStatus('error');
-        }
-    };
-
-    const setGithubPat = async (token: string) => {
-        if (!token.trim()) return;
+    // --- Firebase Sync Logic ---
+    const connectToFirebase = async (syncCode: string) => {
+        if (!syncCode.trim()) return;
 
         setSyncStatus('syncing');
         try {
-            const service = new GistService(token);
-            let gistId = await service.findExistingGistId();
+            const service = new FirebaseService(syncCode);
+            firebaseServiceRef.current = service;
 
-            if (!gistId) {
-                console.log('[CLOUD] No Gist found. Creating new...');
-                gistId = await service.createGist({
+            // Try to download existing data first
+            const cloudData = await service.downloadData();
+
+            if (cloudData) {
+                // Cloud has data - merge it
+                const cloudTime = cloudData.lastUpdated || 0;
+                const localTime = profile.lastUpdated || 0;
+
+                console.log(`[FIREBASE] Cloud: ${cloudTime}, Local: ${localTime}`);
+
+                if (cloudTime > localTime) {
+                    console.log('[FIREBASE] Cloud is newer. Downloading...');
+                    isReceivingUpdate.current = true;
+
+                    if (cloudData.profile) {
+                        setProfile(cloudData.profile);
+                        localStorage.setItem('antigravity_memory_v1', JSON.stringify(cloudData.profile));
+                    }
+                    if (cloudData.sessions && cloudData.sessions.length > 0) {
+                        setSessions(cloudData.sessions);
+                        localStorage.setItem('antigravity_history_v1', JSON.stringify(cloudData.sessions));
+
+                        // Open latest session
+                        const latest = cloudData.sessions.sort((a, b) => b.timestamp - a.timestamp)[0];
+                        setCurrentSessionId(latest.id);
+                        setCurrentMessages(latest.messages);
+                    }
+
+                    isReceivingUpdate.current = false;
+                } else {
+                    console.log('[FIREBASE] Local is newer. Uploading...');
+                    await service.uploadData({
+                        profile,
+                        sessions,
+                        lastUpdated: Date.now()
+                    });
+                }
+            } else {
+                // No cloud data - upload local
+                console.log('[FIREBASE] No cloud data. Uploading local...');
+                await service.uploadData({
                     profile,
                     sessions,
                     lastUpdated: Date.now()
                 });
             }
 
-            const newConfig = { pat: token, gistId, lastSync: Date.now() };
-            setCloudConfig(newConfig);
+            // Subscribe to real-time updates
+            service.subscribeToUpdates((data) => {
+                if (data && !isReceivingUpdate.current) {
+                    const cloudTime = data.lastUpdated || 0;
+                    const localTime = profile.lastUpdated || 0;
+
+                    // Only update if cloud is significantly newer (to avoid feedback loops)
+                    if (cloudTime > localTime + 3000) {
+                        console.log('[FIREBASE] Real-time update received');
+                        isReceivingUpdate.current = true;
+
+                        if (data.profile) {
+                            setProfile(data.profile);
+                            localStorage.setItem('antigravity_memory_v1', JSON.stringify(data.profile));
+                        }
+                        if (data.sessions) {
+                            setSessions(data.sessions);
+                            localStorage.setItem('antigravity_history_v1', JSON.stringify(data.sessions));
+                        }
+
+                        isReceivingUpdate.current = false;
+                    }
+                }
+            });
+
+            setCloudConfig({ syncCode, lastSync: Date.now() });
             setSyncStatus('connected');
 
-            // Trigger initial sync
-            await syncMemoryInternal(newConfig, profile, sessions);
         } catch (error) {
-            console.error('[CLOUD] Connection failed:', error);
+            console.error('[FIREBASE] Connection failed:', error);
             setSyncStatus('error');
         }
     };
 
+    const setSyncCode = async (code: string) => {
+        await connectToFirebase(code);
+    };
+
     const syncMemory = async () => {
-        if (!cloudConfig.pat || !cloudConfig.gistId) return;
+        if (!cloudConfig.syncCode || !firebaseServiceRef.current) return;
+
         setSyncStatus('syncing');
-        await syncMemoryInternal(cloudConfig, profile, sessions);
+        try {
+            await firebaseServiceRef.current.uploadData({
+                profile,
+                sessions,
+                lastUpdated: Date.now()
+            });
+            setCloudConfig(prev => ({ ...prev, lastSync: Date.now() }));
+            setSyncStatus('connected');
+        } catch (error) {
+            console.error('[FIREBASE] Sync failed:', error);
+            setSyncStatus('error');
+        }
+    };
+
+    const disconnectCloud = () => {
+        if (firebaseServiceRef.current) {
+            firebaseServiceRef.current.unsubscribeFromUpdates();
+            firebaseServiceRef.current = null;
+        }
+        setCloudConfig({ syncCode: '', lastSync: 0 });
+        setSyncStatus('idle');
+        localStorage.removeItem('antigravity_firebase_config');
     };
 
 
@@ -486,9 +493,10 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             updateManualProfile,
             deleteFact,
             cloudConfig,
-            setGithubPat,
+            setSyncCode,
             syncStatus,
-            syncMemory
+            syncMemory,
+            disconnectCloud
         }}>
             {children}
         </MemoryContext.Provider>

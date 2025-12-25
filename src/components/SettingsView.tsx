@@ -1,14 +1,15 @@
 import React, { useState } from 'react';
 import { useMemoryContext } from '../context/MemoryContext';
-import { Trash2, Download, Key, ShieldAlert, Cpu, User, Brain, Fingerprint, Sparkles, Save } from 'lucide-react';
+import { Trash2, Download, Key, ShieldAlert, Cpu, User, Brain, Fingerprint, Sparkles, Save, RefreshCw, Copy, LogOut } from 'lucide-react';
+import { FirebaseService } from '../services/FirebaseService';
 
 export const SettingsView: React.FC = () => {
     const {
         apiKey, setApiKey, profile, clearMemory, updateManualProfile,
-        cloudConfig, setGithubPat, syncStatus, syncMemory
+        cloudConfig, setSyncCode, syncStatus, syncMemory, disconnectCloud
     } = useMemoryContext();
     const [keyInput, setKeyInput] = useState(apiKey || '');
-    const [patInput, setPatInput] = useState(cloudConfig.pat || '');
+    const [syncCodeInput, setSyncCodeInput] = useState(cloudConfig.syncCode || '');
     const [showKey, setShowKey] = useState(false);
 
     // Profile State
@@ -113,7 +114,7 @@ export const SettingsView: React.FC = () => {
                     </div>
                 </section>
 
-                {/* Neural Cloud (Gist Sync) */}
+                {/* Neural Cloud (Firebase Sync) */}
                 <section>
                     <div className="flex items-center gap-3 mb-6">
                         <div className="p-1.5 border border-emerald-500/30 bg-emerald-500/10 text-emerald-500">
@@ -125,23 +126,32 @@ export const SettingsView: React.FC = () => {
                     <div className="border border-white/10 bg-[#050505] p-6 relative">
                         <div className="flex gap-4 items-start mb-4">
                             <div className="flex-1">
-                                <label className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider mb-2 block">GitHub Personal Access Token (Gist Scope)</label>
-                                <div className="flex gap-0">
+                                <label className="text-[10px] text-[var(--text-dim)] uppercase tracking-wider mb-2 block">Sync Code (Share across devices)</label>
+                                <div className="flex gap-2">
                                     <input
-                                        type="password"
-                                        placeholder="ghp_..."
-                                        value={patInput}
-                                        onChange={(e) => setPatInput(e.target.value)}
-                                        className="w-full bg-black/40 border border-white/10 px-4 py-2 text-xs text-white focus:border-emerald-500 outline-none placeholder-[var(--text-dim)]"
+                                        type="text"
+                                        placeholder="Enter or generate a sync code..."
+                                        value={syncCodeInput}
+                                        onChange={(e) => setSyncCodeInput(e.target.value.toLowerCase().replace(/[^a-z0-9]/g, ''))}
+                                        className="flex-1 bg-black/40 border border-white/10 px-4 py-2 text-xs text-white focus:border-emerald-500 outline-none placeholder-[var(--text-dim)] font-mono tracking-widest"
+                                        maxLength={16}
                                     />
                                     <button
-                                        onClick={() => setGithubPat(patInput)}
-                                        disabled={syncStatus === 'syncing'}
+                                        onClick={() => setSyncCodeInput(FirebaseService.generateSyncCode())}
+                                        className="px-3 py-2 bg-white/5 border border-white/10 text-[var(--text-dim)] hover:text-white hover:bg-white/10 transition-all"
+                                        title="Generate Random Code"
+                                    >
+                                        <RefreshCw size={14} />
+                                    </button>
+                                    <button
+                                        onClick={() => setSyncCode(syncCodeInput)}
+                                        disabled={syncStatus === 'syncing' || syncCodeInput.length < 4}
                                         className="px-4 py-2 bg-emerald-500/10 border border-emerald-500/30 text-emerald-500 hover:bg-emerald-500 hover:text-black transition-all text-xs font-bold uppercase disabled:opacity-50 whitespace-nowrap"
                                     >
-                                        {syncStatus === 'syncing' ? '...' : (cloudConfig.pat ? 'Update' : 'Connect')}
+                                        {syncStatus === 'syncing' ? '...' : (cloudConfig.syncCode ? 'Update' : 'Connect')}
                                     </button>
                                 </div>
+                                <p className="text-[9px] text-[var(--text-dim)] mt-2">Use the same code on all devices to sync your memory and chat history.</p>
                             </div>
                         </div>
 
@@ -149,16 +159,16 @@ export const SettingsView: React.FC = () => {
                         <div className="flex items-center justify-between border-t border-white/5 pt-4">
                             <div className="flex items-center gap-2">
                                 <div className={`w-2 h-2 rounded-full ${syncStatus === 'connected' ? 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]' :
-                                        syncStatus === 'syncing' ? 'bg-amber-500 animate-pulse' :
-                                            syncStatus === 'error' ? 'bg-red-500' :
-                                                'bg-gray-700'
+                                    syncStatus === 'syncing' ? 'bg-amber-500 animate-pulse' :
+                                        syncStatus === 'error' ? 'bg-red-500' :
+                                            'bg-gray-700'
                                     }`} />
                                 <span className={`text-[10px] uppercase font-bold tracking-wider ${syncStatus === 'connected' ? 'text-emerald-500' :
-                                        syncStatus === 'error' ? 'text-red-500' :
-                                            'text-[var(--text-dim)]'
+                                    syncStatus === 'error' ? 'text-red-500' :
+                                        'text-[var(--text-dim)]'
                                     }`}>
-                                    {syncStatus === 'connected' ? 'System Online' :
-                                        syncStatus === 'syncing' ? 'Synchronizing...' :
+                                    {syncStatus === 'connected' ? 'Live Sync Active' :
+                                        syncStatus === 'syncing' ? 'Connecting...' :
                                             syncStatus === 'error' ? 'Connection Failed' :
                                                 'Offline'}
                                 </span>
@@ -166,23 +176,40 @@ export const SettingsView: React.FC = () => {
 
                             {cloudConfig.lastSync > 0 && (
                                 <div className="text-[10px] text-[var(--text-dim)] font-mono">
-                                    LAST SYNC: {new Date(cloudConfig.lastSync).toLocaleTimeString()}
+                                    LAST: {new Date(cloudConfig.lastSync).toLocaleTimeString()}
                                 </div>
                             )}
 
-                            {syncStatus === 'connected' && (
-                                <button
-                                    onClick={syncMemory}
-                                    className="text-[10px] text-[var(--text-dim)] hover:text-white underline decoration-white/30 hover:decoration-white transition-all cursor-pointer uppercase"
-                                >
-                                    Force Sync
-                                </button>
-                            )}
+                            <div className="flex gap-2">
+                                {syncStatus === 'connected' && (
+                                    <>
+                                        <button
+                                            onClick={syncMemory}
+                                            className="text-[10px] text-[var(--text-dim)] hover:text-white underline decoration-white/30 hover:decoration-white transition-all cursor-pointer uppercase"
+                                        >
+                                            Force Sync
+                                        </button>
+                                        <button
+                                            onClick={() => navigator.clipboard.writeText(cloudConfig.syncCode)}
+                                            className="text-[10px] text-[var(--text-dim)] hover:text-emerald-500 transition-all cursor-pointer uppercase flex items-center gap-1"
+                                        >
+                                            <Copy size={10} /> Copy Code
+                                        </button>
+                                        <button
+                                            onClick={disconnectCloud}
+                                            className="text-[10px] text-red-500/70 hover:text-red-500 transition-all cursor-pointer uppercase flex items-center gap-1"
+                                        >
+                                            <LogOut size={10} /> Disconnect
+                                        </button>
+                                    </>
+                                )}
+                            </div>
                         </div>
 
                         {syncStatus === 'connected' && (
-                            <div className="mt-4 p-3 bg-emerald-500/5 border border-emerald-500/10 rounded text-[10px] text-emerald-400/80 font-mono">
-                                GIST ID: {cloudConfig.gistId}
+                            <div className="mt-4 p-3 bg-emerald-500/5 border border-emerald-500/10 rounded text-[10px] text-emerald-400/80 font-mono flex items-center justify-between">
+                                <span>SYNC CODE: <span className="text-emerald-400 font-bold tracking-widest">{cloudConfig.syncCode.toUpperCase()}</span></span>
+                                <span className="text-[9px] text-[var(--text-dim)]">Real-time sync enabled</span>
                             </div>
                         )}
                     </div>
