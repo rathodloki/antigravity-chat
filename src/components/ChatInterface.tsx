@@ -128,7 +128,7 @@ export const ChatInterface: React.FC = () => {
             {/* Header / Top Bar - Pro Dashboard Style */}
             <header className="flex justify-between items-center px-6 py-3 w-full z-20 bg-[#0a0a0b] border-b border-white/10">
                 <div className="flex items-center gap-4">
-                    <div className="flex items-center gap-3 group cursor-pointer">
+                    <div className="hidden md:flex items-center gap-3 group cursor-pointer">
                         <span className="text-xl font-bold font-mono tracking-tighter text-white">
                             ANTIGRAVITY<span className="text-[var(--accent-primary)]">.AI</span>
                         </span>

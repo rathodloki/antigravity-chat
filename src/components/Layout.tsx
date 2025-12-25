@@ -14,7 +14,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             {/* Mobile Menu Overlay */}
             {isMobileMenuOpen && (
                 <div
-                    className="fixed inset-0 bg-black/80 z-40 md:hidden"
+                    className="fixed inset-0 bg-black/50 backdrop-blur-sm z-40 md:hidden"
                     onClick={() => setIsMobileMenuOpen(false)}
                 />
             )}
