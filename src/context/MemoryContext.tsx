@@ -71,8 +71,16 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     // Cloud Sync State (Firebase)
     const [cloudConfig, setCloudConfig] = useState<CloudConfig>(() => {
-        const saved = localStorage.getItem('antigravity_firebase_config');
-        return saved ? JSON.parse(saved) : { syncCode: '', lastSync: 0 };
+        try {
+            const saved = localStorage.getItem('antigravity_firebase_config');
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                return { syncCode: parsed.syncCode || '', lastSync: parsed.lastSync || 0 };
+            }
+        } catch (e) {
+            console.error('[INIT] Failed to parse firebase config:', e);
+        }
+        return { syncCode: '', lastSync: 0 };
     });
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'connected'>('idle');
     const [isLocalDataLoaded, setIsLocalDataLoaded] = useState(false);
@@ -378,8 +386,13 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                     isReceivingUpdate.current = true;
 
                     if (cloudData.profile) {
-                        setProfile(cloudData.profile);
-                        localStorage.setItem('antigravity_memory_v1', JSON.stringify(cloudData.profile));
+                        const safeProfile = {
+                            ...cloudData.profile,
+                            facts: cloudData.profile.facts || [],
+                            preferences: cloudData.profile.preferences || []
+                        };
+                        setProfile(safeProfile);
+                        localStorage.setItem('antigravity_memory_v1', JSON.stringify(safeProfile));
                     }
                     if (cloudData.sessions && cloudData.sessions.length > 0) {
                         setSessions(cloudData.sessions);
@@ -422,8 +435,13 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                         isReceivingUpdate.current = true;
 
                         if (data.profile) {
-                            setProfile(data.profile);
-                            localStorage.setItem('antigravity_memory_v1', JSON.stringify(data.profile));
+                            const safeProfile = {
+                                ...data.profile,
+                                facts: data.profile.facts || [],
+                                preferences: data.profile.preferences || []
+                            };
+                            setProfile(safeProfile);
+                            localStorage.setItem('antigravity_memory_v1', JSON.stringify(safeProfile));
                         }
                         if (data.sessions) {
                             setSessions(data.sessions);
