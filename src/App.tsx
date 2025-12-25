@@ -26,13 +26,17 @@ const MainContent = () => {
   );
 };
 
+import { GlobalErrorBoundary } from './components/GlobalErrorBoundary';
+
 function App() {
   return (
-    <MemoryProvider>
-      <UIProvider>
-        <MainContent />
-      </UIProvider>
-    </MemoryProvider>
+    <GlobalErrorBoundary>
+      <MemoryProvider>
+        <UIProvider>
+          <MainContent />
+        </UIProvider>
+      </MemoryProvider>
+    </GlobalErrorBoundary>
   );
 }
 
