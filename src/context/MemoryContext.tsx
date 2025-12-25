@@ -75,16 +75,17 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         return saved ? JSON.parse(saved) : { pat: '', gistId: null, lastSync: 0 };
     });
     const [syncStatus, setSyncStatus] = useState<'idle' | 'syncing' | 'error' | 'connected'>('idle');
+    const [isLocalDataLoaded, setIsLocalDataLoaded] = useState(false);
 
     // Persist Cloud Config
     useEffect(() => {
         localStorage.setItem('antigravity_cloud_config', JSON.stringify(cloudConfig));
     }, [cloudConfig]);
 
-    // Auto-Connect on Load
+    // Auto-Connect on Load (only after local data is loaded)
     useEffect(() => {
-        if (cloudConfig.pat && cloudConfig.gistId) {
-            console.log('[CLOUD] Auto-connecting...');
+        if (isLocalDataLoaded && cloudConfig.pat && cloudConfig.gistId) {
+            console.log('[CLOUD] Auto-connecting after local data load...');
             setSyncStatus('syncing');
             // Pass current sessions explicitly
             syncMemoryInternal(cloudConfig, profile, sessions).catch(e => {
@@ -92,7 +93,7 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setSyncStatus('error');
             });
         }
-    }, [cloudConfig.pat, cloudConfig.gistId]); // Depends on config loading
+    }, [isLocalDataLoaded, cloudConfig.pat, cloudConfig.gistId]); // Depends on local load completion
 
     const setApiKey = (key: string) => {
         setApiKeyState(key);
@@ -133,6 +134,9 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         } else {
             startNewChat();
         }
+
+        // Mark local data as loaded
+        setIsLocalDataLoaded(true);
     }, []);
 
     // Save History Persistence

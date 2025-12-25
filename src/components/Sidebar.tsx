@@ -5,9 +5,10 @@ import { useState } from 'react';
 
 interface SidebarProps {
     className?: string;
+    onNavigate?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ className = '', onNavigate }) => {
     const { activeView, setActiveView, startNewChat, sessions, currentSessionId, openChat, archiveSession, deleteSession } = useMemoryContext();
     const { showAlert } = useUI();
     const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
@@ -24,6 +25,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                     onClick={() => {
                         startNewChat();
                         setActiveView('chat');
+                        onNavigate?.();
                     }}
                     className="w-full flex items-center gap-2 px-3 py-2 bg-[var(--accent-primary)] hover:bg-[var(--accent-secondary)] text-black font-bold font-mono text-xs uppercase tracking-wider transition-all"
                 >
@@ -53,7 +55,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                                         ? 'bg-white/10 text-white'
                                         : 'text-[var(--text-dim)] hover:bg-white/5 hover:text-white'
                                         }`}
-                                    onClick={() => openChat(session.id)}
+                                    onClick={() => {
+                                        openChat(session.id);
+                                        onNavigate?.();
+                                    }}
                                 >
                                     <MessageSquare size={12} className={currentSessionId === session.id ? 'text-[var(--accent-primary)]' : 'opacity-50'} />
                                     <div className="flex-1 overflow-hidden">
@@ -125,7 +130,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                         icon={Activity}
                         label="Neural Stream"
                         active={activeView === 'memory'}
-                        onClick={() => setActiveView('memory')}
+                        onClick={() => { setActiveView('memory'); onNavigate?.(); }}
                     />
                 </div>
 
@@ -137,13 +142,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                         icon={Database}
                         label="Archives"
                         active={activeView === 'history'}
-                        onClick={() => setActiveView('history')}
+                        onClick={() => { setActiveView('history'); onNavigate?.(); }}
                     />
                     <NavItem
                         icon={Box}
                         label="Models"
                         active={activeView === 'models'}
-                        onClick={() => setActiveView('models')}
+                        onClick={() => { setActiveView('models'); onNavigate?.(); }}
                         badge="3"
                     />
                 </div>
@@ -156,13 +161,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ className = '' }) => {
                         icon={Settings}
                         label="Configuration"
                         active={activeView === 'settings'}
-                        onClick={() => setActiveView('settings')}
+                        onClick={() => { setActiveView('settings'); onNavigate?.(); }}
                     />
                     <NavItem
                         icon={Shield}
                         label="Security"
                         active={activeView === 'security'}
-                        onClick={() => setActiveView('security')}
+                        onClick={() => { setActiveView('security'); onNavigate?.(); }}
                     />
                 </div>
             </div>
