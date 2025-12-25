@@ -1,5 +1,5 @@
 import React from 'react';
-import { Shield, Lock, Eye, FileText, CheckCircle } from 'lucide-react';
+import { Shield, Lock, Eye, CheckCircle } from 'lucide-react';
 
 export const SecurityView: React.FC = () => {
     return (
