@@ -506,9 +506,9 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     useEffect(() => {
         if (isLocalDataLoaded && cloudConfig.syncCode && firebaseServiceRef.current && !isReceivingUpdate.current) {
             const timeoutId = setTimeout(() => {
-                console.log('[FIREBASE] Auto-syncing local changes...');
+                console.log('[FIREBASE] Auto-syncing local changes (debounce 500ms)...');
                 syncMemory();
-            }, 2000); // 2s debounce to capture burst edits
+            }, 500); // 500ms debounce
             return () => clearTimeout(timeoutId);
         }
     }, [sessions, profile, isLocalDataLoaded, cloudConfig.syncCode]);
