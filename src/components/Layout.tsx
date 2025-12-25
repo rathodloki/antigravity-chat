@@ -10,7 +10,7 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
     const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
     return (
-        <div className="flex flex-col md:flex-row h-screen w-screen overflow-hidden text-[var(--text-main)] selection:bg-[var(--accent-primary)] selection:text-black">
+        <div className="flex flex-col md:flex-row fixed inset-0 overflow-hidden text-[var(--text-main)] selection:bg-[var(--accent-primary)] selection:text-black">
             {/* Mobile Menu Overlay */}
             {isMobileMenuOpen && (
                 <div
