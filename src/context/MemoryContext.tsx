@@ -81,6 +81,19 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         localStorage.setItem('antigravity_cloud_config', JSON.stringify(cloudConfig));
     }, [cloudConfig]);
 
+    // Auto-Connect on Load
+    useEffect(() => {
+        if (cloudConfig.pat && cloudConfig.gistId) {
+            console.log('[CLOUD] Auto-connecting...');
+            setSyncStatus('syncing');
+            // Pass current sessions explicitly
+            syncMemoryInternal(cloudConfig, profile, sessions).catch(e => {
+                console.error('[CLOUD] Auto-sync failed', e);
+                setSyncStatus('error');
+            });
+        }
+    }, [cloudConfig.pat, cloudConfig.gistId]); // Depends on config loading
+
     const setApiKey = (key: string) => {
         setApiKeyState(key);
         localStorage.setItem('gemini_api_key', key);
@@ -309,7 +322,8 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
 
     // --- Neural Cloud Sync Logic ---
-    const syncMemoryInternal = async (config: CloudConfig, currentProfile: UserProfile) => {
+    // --- Neural Cloud Sync Logic ---
+    const syncMemoryInternal = async (config: CloudConfig, currentProfile: UserProfile, currentSessions: ChatSession[]) => {
         try {
             const service = new GistService(config.pat);
             // 1. Download Cloud Data
@@ -319,24 +333,64 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
             if (!cloudResult) {
                 // Cloud Empty? Upload Local.
-                await service.updateMemory(config.gistId, currentProfile);
+                const payload = {
+                    profile: currentProfile,
+                    sessions: currentSessions,
+                    lastUpdated: Date.now()
+                };
+                await service.updateMemory(config.gistId, payload);
                 setSyncStatus('connected');
                 return;
             }
 
-            const cloudProfile = cloudResult.data;
+            // Handle legacy format (where root was UserProfile) vs new format
+            const cloudData = cloudResult.data as any; // Force any to inspect structure
+
+            let cloudProfile: UserProfile;
+            let cloudSessions: ChatSession[] = [];
+
+            if (cloudData.profile) {
+                // New NeuralPayload format
+                cloudProfile = cloudData.profile;
+                cloudSessions = cloudData.sessions || [];
+            } else {
+                // Legacy UserProfile format
+                cloudProfile = cloudData as UserProfile;
+            }
             const cloudTime = new Date(cloudProfile.lastUpdated || 0).getTime();
             const localTime = new Date(currentProfile.lastUpdated || 0).getTime();
 
             console.log(`[SYNC] Cloud: ${cloudTime}, Local: ${localTime}`);
 
-            if (cloudTime > localTime) {
+            // Simple "Last Write Wins" based on Gist Update Time
+            if (cloudTime > localTime + 2000) { // 2s buffer
                 console.log('[SYNC] Cloud is newer. Overwriting local.');
-                setProfile(cloudProfile);
-                localStorage.setItem('antigravity_memory_v1', JSON.stringify(cloudProfile));
-            } else if (localTime > cloudTime) {
+
+                if (cloudProfile && cloudProfile.name) {
+                    setProfile(cloudProfile);
+                    localStorage.setItem('antigravity_memory_v1', JSON.stringify(cloudProfile));
+                }
+
+                // Merge Sessions: smart merge? For now, Cloud Overwrite to ensure consistency across devices
+                if (cloudSessions.length > 0) {
+                    setSessions(cloudSessions);
+                    localStorage.setItem('antigravity_history_v1', JSON.stringify(cloudSessions));
+
+                    // Reload current view if empty
+                    if (currentMessages.length === 0 && cloudSessions.length > 0) {
+                        const latest = cloudSessions.sort((a: any, b: any) => b.timestamp - a.timestamp)[0];
+                        setCurrentSessionId(latest.id);
+                        setCurrentMessages(latest.messages);
+                    }
+                }
+            } else if (localTime > cloudTime + 2000) {
                 console.log('[SYNC] Local is newer. Uploading to cloud.');
-                await service.updateMemory(config.gistId, currentProfile);
+                const payload = {
+                    profile: currentProfile,
+                    sessions: currentSessions,
+                    lastUpdated: Date.now()
+                };
+                await service.updateMemory(config.gistId, payload);
             } else {
                 console.log('[SYNC] Fully synced.');
             }
@@ -360,7 +414,11 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
             if (!gistId) {
                 console.log('[CLOUD] No Gist found. Creating new...');
-                gistId = await service.createGist(profile);
+                gistId = await service.createGist({
+                    profile,
+                    sessions,
+                    lastUpdated: Date.now()
+                });
             }
 
             const newConfig = { pat: token, gistId, lastSync: Date.now() };
@@ -368,7 +426,7 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             setSyncStatus('connected');
 
             // Trigger initial sync
-            await syncMemoryInternal(newConfig, profile);
+            await syncMemoryInternal(newConfig, profile, sessions);
         } catch (error) {
             console.error('[CLOUD] Connection failed:', error);
             setSyncStatus('error');
@@ -378,7 +436,7 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const syncMemory = async () => {
         if (!cloudConfig.pat || !cloudConfig.gistId) return;
         setSyncStatus('syncing');
-        await syncMemoryInternal(cloudConfig, profile);
+        await syncMemoryInternal(cloudConfig, profile, sessions);
     };
 
 

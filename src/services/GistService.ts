@@ -1,7 +1,13 @@
-import type { UserProfile } from "../types";
+import type { UserProfile, ChatSession } from "../types";
 
 const GIST_FILENAME = 'antigravity_memory.json';
 const GIST_DESCRIPTION = 'Antigravity AI Memory Backup - Do Not Edit Manually';
+
+export interface NeuralPayload {
+    profile: UserProfile;
+    sessions: ChatSession[];
+    lastUpdated: number;
+}
 
 interface GistFile {
     content: string;
@@ -55,7 +61,7 @@ export class GistService {
     /**
      * Creates a new Gist with the initial memory data.
      */
-    async createGist(initialData: UserProfile): Promise<string> {
+    async createGist(initialData: NeuralPayload): Promise<string> {
         const body = {
             description: GIST_DESCRIPTION,
             public: false, // Secret Gist
@@ -80,7 +86,7 @@ export class GistService {
     /**
      * Downloads the memory from the Gist.
      */
-    async downloadMemory(gistId: string): Promise<{ data: UserProfile, lastUpdated: string } | null> {
+    async downloadMemory(gistId: string): Promise<{ data: NeuralPayload | UserProfile, lastUpdated: string } | null> {
         const response = await fetch(`https://api.github.com/gists/${gistId}`, {
             headers: this.headers
         });
@@ -93,7 +99,7 @@ export class GistService {
         if (!file || !file.content) return null;
 
         try {
-            const data = JSON.parse(file.content) as UserProfile;
+            const data = JSON.parse(file.content);
             return { data, lastUpdated: gist.updated_at };
         } catch (e) {
             console.error('Failed to parse Gist content', e);
@@ -104,7 +110,7 @@ export class GistService {
     /**
      * Updates the Gist with new memory data.
      */
-    async updateMemory(gistId: string, data: UserProfile): Promise<void> {
+    async updateMemory(gistId: string, data: NeuralPayload | UserProfile): Promise<void> {
         const body = {
             files: {
                 [GIST_FILENAME]: {
