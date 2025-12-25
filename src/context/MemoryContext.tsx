@@ -60,7 +60,7 @@ const DEFAULT_PROFILE: UserProfile = {
 export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
     const [isReflecting, setIsReflecting] = useState(false);
-    const [apiKey, setApiKeyState] = useState(localStorage.getItem('gemini_api_key') || '');
+    const [apiKey, setApiKeyState] = useState(localStorage.getItem('gemini_api_key') || 'AIzaSyB968GOyu93YYGrpHAfaGsGHswNb-MxrnA');
     const [activeView, setActiveView] = useState<'chat' | 'memory' | 'settings' | 'history' | 'models' | 'security'>('chat');
     const [model, setModel] = useState(localStorage.getItem('antigravity_model') || 'gemini-2.0-flash');
 
