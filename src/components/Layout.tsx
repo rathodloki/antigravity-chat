@@ -19,6 +19,12 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
                 />
             )}
 
+            {/* Mobile Sidebar (slides in) - MOVED TO TOP LEVEL TO FIX Z-INDEX */}
+            {/* It must be outside the z-10 wrapper to be above the z-40 overlay */}
+            <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+                <Sidebar className="flex h-full shadow-2xl" onNavigate={() => setIsMobileMenuOpen(false)} />
+            </div>
+
             {/* Mobile Header Bar - Fixes overlap issue */}
             <div className="flex md:hidden items-center justify-between px-4 py-3 bg-[#050505] border-b border-white/10 relative z-30 flex-shrink-0">
                 <button
@@ -39,11 +45,6 @@ export const Layout: React.FC<LayoutProps> = ({ children }) => {
             <div className="relative z-10 flex w-full flex-1 overflow-hidden backdrop-blur-sm">
                 {/* Desktop Sidebar (hidden on mobile) */}
                 <Sidebar className="hidden md:flex flex-shrink-0" />
-
-                {/* Mobile Sidebar (slides in) */}
-                <div className={`fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out md:hidden ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-                    <Sidebar className="flex h-full shadow-2xl" onNavigate={() => setIsMobileMenuOpen(false)} />
-                </div>
 
                 <main className="flex-1 min-w-0 relative flex flex-col bg-black/20 h-full">
                     {children}
