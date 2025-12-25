@@ -115,7 +115,15 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         // Profile
         const savedProfile = localStorage.getItem('antigravity_memory_v1');
         if (savedProfile) {
-            try { setProfile(JSON.parse(savedProfile)); } catch (e) { console.error(e); }
+            try {
+                const parsed = JSON.parse(savedProfile);
+                // Ensure required arrays exist
+                setProfile({
+                    ...parsed,
+                    facts: parsed.facts || [],
+                    preferences: parsed.preferences || []
+                });
+            } catch (e) { console.error(e); }
         }
 
         // History
@@ -123,14 +131,15 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         if (savedHistory) {
             try {
                 const parsedSessions: ChatSession[] = JSON.parse(savedHistory);
-                setSessions(parsedSessions);
+                // Filter out invalid sessions
+                const validSessions = parsedSessions.filter(s => s && s.id && Array.isArray(s.messages));
+                setSessions(validSessions);
 
-                // If we have history, maybe open the latest one?
-                if (parsedSessions.length > 0) {
-                    // Sort by timestamp desc to get latest
-                    const latest = parsedSessions.sort((a, b) => b.timestamp - a.timestamp)[0];
+                // If we have history, open the latest one
+                if (validSessions.length > 0) {
+                    const latest = validSessions.sort((a, b) => b.timestamp - a.timestamp)[0];
                     setCurrentSessionId(latest.id);
-                    setCurrentMessages(latest.messages);
+                    setCurrentMessages(latest.messages || []);
                 } else {
                     startNewChat();
                 }
