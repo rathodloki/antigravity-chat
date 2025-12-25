@@ -379,7 +379,7 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                         // Open latest session
                         const latest = cloudData.sessions.sort((a, b) => b.timestamp - a.timestamp)[0];
                         setCurrentSessionId(latest.id);
-                        setCurrentMessages(latest.messages);
+                        setCurrentMessages(latest.messages || []);
                     }
 
                     isReceivingUpdate.current = false;
@@ -419,6 +419,14 @@ export const MemoryProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                         if (data.sessions) {
                             setSessions(data.sessions);
                             localStorage.setItem('antigravity_history_v1', JSON.stringify(data.sessions));
+
+                            // Update active chat view if open
+                            if (currentSessionId) {
+                                const activeSession = data.sessions.find(s => s.id === currentSessionId);
+                                if (activeSession) {
+                                    setCurrentMessages(activeSession.messages || []);
+                                }
+                            }
                         }
 
                         isReceivingUpdate.current = false;

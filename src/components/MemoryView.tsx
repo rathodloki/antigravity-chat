@@ -53,12 +53,12 @@ export const MemoryView: React.FC = () => {
                             <div className="space-y-4">
                                 <div className="flex justify-between items-end">
                                     <span className="text-[10px] text-[var(--text-dim)] uppercase">Facts Stored</span>
-                                    <span className="text-xl font-bold text-white">{profile.facts.length}</span>
+                                    <span className="text-xl font-bold text-white">{(profile.facts || []).length}</span>
                                 </div>
                                 <div className="w-full h-px bg-white/5" />
                                 <div className="flex justify-between items-end">
                                     <span className="text-[10px] text-[var(--text-dim)] uppercase">Preferences</span>
-                                    <span className="text-xl font-bold text-white">{profile.preferences.length}</span>
+                                    <span className="text-xl font-bold text-white">{(profile.preferences || []).length}</span>
                                 </div>
                             </div>
                         </div>
@@ -83,12 +83,12 @@ export const MemoryView: React.FC = () => {
 
                             {/* Table Body */}
                             <div className="divide-y divide-white/5">
-                                {profile.facts.length === 0 ? (
+                                {(profile.facts || []).length === 0 ? (
                                     <div className="p-8 text-center text-[10px] text-[var(--text-dim)]">
                                         [NO DATA] Neural Network is empty. Initiate conversation to build graph.
                                     </div>
                                 ) : (
-                                    profile.facts.map((fact, i) => (
+                                    (profile.facts || []).map((fact, i) => (
                                         <div key={i} className="grid grid-cols-12 gap-4 px-4 py-3 text-[11px] hover:bg-white/5 transition-colors group">
                                             <div className="col-span-1 text-[var(--text-dim)] font-mono">{String(i).padStart(3, '0')}</div>
                                             <div className="col-span-2 text-[var(--accent-primary)]">FACT_NODE</div>
